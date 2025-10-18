@@ -1,0 +1,23 @@
+{
+  "name": "nong-tri-agriculture-api",
+  "version": "1.0.0",
+  "description": "Master crop and livestock database API for Nông Trí",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "db:migrate": "node src/db/migrate.js",
+    "db:seed": "node src/db/seed.js"
+  },
+  "keywords": ["agriculture", "crops", "livestock", "farming", "vietnam"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "dotenv": "^16.4.5",
+    "cors": "^2.8.5",
+    "pg": "^8.11.3",
+    "body-parser": "^1.20.2"
+  }
+}
