@@ -1,0 +1,718 @@
+openapi: 3.0.3
+info:
+  title: Nông Trí Agriculture API
+  description: |
+    # 🌱 Agriculture Data Service
+
+    Microservice providing comprehensive agricultural data including crops and livestock information
+    for Vietnamese farmers. This API serves as the data backbone for the Nông Trí ecosystem.
+
+    ## 🎯 Purpose
+    Provides structured agricultural data to support farming decisions:
+    - **Crop Information** - Detailed data on 50+ crops
+    - **Livestock Data** - Information on common farm animals
+    - **Seasonal Guidance** - Planting and harvesting schedules
+    - **Category Filtering** - Find crops/livestock by type
+
+    ## 🌾 Features
+    - RESTful JSON API
+    - Pagination support
+    - Search functionality
+    - Category and season filtering
+    - Bilingual data (Vietnamese/English)
+
+    ## 📊 Database
+    PostgreSQL database with:
+    - **50+ crop varieties** with growing requirements
+    - **20+ livestock types** with care information
+    - **Seasonal calendars** for optimal planting
+    - **Disease & pest information**
+
+    ## 🔗 Integration
+    This API is consumed by:
+    - Nông Trí Backend API (proxied endpoints)
+    - AgriVision MCP Server (crop validation)
+    - Mobile applications (direct or via backend)
+
+  version: 1.0.0
+  contact:
+    name: Nông Trí Agriculture API Support
+    email: support@nongtri.app
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://nong-tri-agriculture-api.up.railway.app
+    description: Production server (Railway)
+  - url: http://localhost:5000
+    description: Local development server
+
+tags:
+  - name: Health
+    description: Service health monitoring
+  - name: Crops
+    description: Crop information and management
+  - name: Livestock
+    description: Livestock information and management
+
+paths:
+  /:
+    get:
+      tags:
+        - Health
+      summary: Health Check
+      description: Check if the Agriculture API service is running
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Nông Trí Agriculture API Server is running on port 5000"
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Detailed Health Status
+      description: Get detailed health status including database connection
+      responses:
+        '200':
+          description: Service health details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  service:
+                    type: string
+                    example: Nông Trí Agriculture API
+                  timestamp:
+                    type: string
+                    format: date-time
+                  database:
+                    type: string
+                    enum: [connected, disconnected]
+
+  /api/crops:
+    get:
+      tags:
+        - Crops
+      summary: List all crops
+      description: |
+        Retrieve a paginated list of all available crops in the database.
+        Includes comprehensive information about each crop including growing requirements,
+        seasonal information, and common issues.
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: language
+          in: query
+          description: Language for crop names
+          schema:
+            type: string
+            enum: [vi, en]
+            default: vi
+      responses:
+        '200':
+          description: List of crops retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Crop'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+              examples:
+                example1:
+                  summary: Sample response
+                  value:
+                    success: true
+                    data:
+                      - id: 1
+                        name: Lúa
+                        scientific_name: Oryza sativa
+                        category: Grains
+                        growing_season: Year-round
+                        harvest_time: 90-120 days
+                        climate_requirements:
+                          temperature: 20-35°C
+                          rainfall: 1000-1500mm/year
+                        common_diseases: ["Blast", "Brown spot"]
+                    pagination:
+                      page: 1
+                      limit: 20
+                      total: 50
+                      totalPages: 3
+
+  /api/crops/{id}:
+    get:
+      tags:
+        - Crops
+      summary: Get crop details
+      description: Retrieve detailed information about a specific crop by its ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Crop ID
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Crop details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Crop'
+        '404':
+          description: Crop not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/crops/search:
+    get:
+      tags:
+        - Crops
+      summary: Search crops
+      description: Search for crops by name or characteristics
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query (searches name and scientific name)
+          schema:
+            type: string
+            minLength: 2
+            example: tomato
+        - name: language
+          in: query
+          description: Language for results
+          schema:
+            type: string
+            enum: [vi, en]
+            default: vi
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Crop'
+                  count:
+                    type: integer
+                    description: Number of results found
+
+  /api/crops/category/{category}:
+    get:
+      tags:
+        - Crops
+      summary: Filter crops by category
+      description: Get all crops belonging to a specific category
+      parameters:
+        - name: category
+          in: path
+          required: true
+          description: Crop category
+          schema:
+            type: string
+            enum: [Grains, Vegetables, Fruits, Legumes, Tubers, Herbs, Industrial]
+          example: Vegetables
+      responses:
+        '200':
+          description: Filtered crops list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  category:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Crop'
+
+  /api/crops/season/{season}:
+    get:
+      tags:
+        - Crops
+      summary: Filter crops by season
+      description: Get crops suitable for planting in a specific season
+      parameters:
+        - name: season
+          in: path
+          required: true
+          description: Growing season
+          schema:
+            type: string
+            enum: [Spring, Summer, Fall, Winter, Year-round]
+          example: Spring
+      responses:
+        '200':
+          description: Seasonal crops list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  season:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Crop'
+
+  /api/livestock:
+    get:
+      tags:
+        - Livestock
+      summary: List all livestock
+      description: |
+        Retrieve a paginated list of all livestock types in the database.
+        Includes information about care requirements, feeding, and common health issues.
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of livestock retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Livestock'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /api/livestock/{id}:
+    get:
+      tags:
+        - Livestock
+      summary: Get livestock details
+      description: Retrieve detailed information about a specific livestock type
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Livestock ID
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Livestock details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Livestock'
+        '404':
+          description: Livestock not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/livestock/search:
+    get:
+      tags:
+        - Livestock
+      summary: Search livestock
+      description: Search for livestock by name or characteristics
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query
+          schema:
+            type: string
+            minLength: 2
+            example: chicken
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Livestock'
+                  count:
+                    type: integer
+
+  /api/livestock/category/{category}:
+    get:
+      tags:
+        - Livestock
+      summary: Filter livestock by category
+      description: Get all livestock belonging to a specific category
+      parameters:
+        - name: category
+          in: path
+          required: true
+          description: Livestock category
+          schema:
+            type: string
+            enum: [Poultry, Cattle, Swine, Aquatic, Small Animals]
+          example: Poultry
+      responses:
+        '200':
+          description: Filtered livestock list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  category:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Livestock'
+
+components:
+  schemas:
+    Crop:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique crop identifier
+          example: 1
+        name:
+          type: string
+          description: Common name of the crop
+          example: Lúa (Rice)
+        scientific_name:
+          type: string
+          description: Scientific/botanical name
+          example: Oryza sativa
+        category:
+          type: string
+          enum: [Grains, Vegetables, Fruits, Legumes, Tubers, Herbs, Industrial]
+          description: Crop category
+          example: Grains
+        description:
+          type: string
+          description: Detailed description of the crop
+        growing_season:
+          type: string
+          description: Optimal growing season
+          example: Year-round
+        planting_time:
+          type: string
+          description: Best time to plant
+          example: May-June
+        harvest_time:
+          type: string
+          description: Time to harvest after planting
+          example: 90-120 days
+        climate_requirements:
+          type: object
+          properties:
+            temperature:
+              type: string
+              example: 20-35°C
+            rainfall:
+              type: string
+              example: 1000-1500mm/year
+            humidity:
+              type: string
+              example: 60-80%
+        soil_requirements:
+          type: object
+          properties:
+            type:
+              type: string
+              example: Clay loam
+            ph:
+              type: string
+              example: 5.5-7.0
+            drainage:
+              type: string
+              example: Well-drained
+        common_diseases:
+          type: array
+          items:
+            type: string
+          example: ["Blast", "Brown spot", "Bacterial blight"]
+        common_pests:
+          type: array
+          items:
+            type: string
+          example: ["Stem borer", "Leaf folder", "Brown planthopper"]
+        nutritional_requirements:
+          type: object
+          properties:
+            nitrogen:
+              type: string
+              example: High
+            phosphorus:
+              type: string
+              example: Medium
+            potassium:
+              type: string
+              example: Medium
+        yield_potential:
+          type: string
+          description: Expected yield per hectare
+          example: 4-6 tons/ha
+        market_value:
+          type: string
+          description: Current market value indication
+          example: Medium-High
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Livestock:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique livestock identifier
+          example: 1
+        name:
+          type: string
+          description: Common name
+          example: Gà (Chicken)
+        scientific_name:
+          type: string
+          description: Scientific name
+          example: Gallus gallus domesticus
+        category:
+          type: string
+          enum: [Poultry, Cattle, Swine, Aquatic, Small Animals]
+          example: Poultry
+        breed:
+          type: string
+          description: Common breeds
+          example: Local breeds, Broiler, Layer
+        description:
+          type: string
+          description: Detailed description
+        lifespan:
+          type: string
+          description: Average lifespan
+          example: 5-10 years
+        maturity_age:
+          type: string
+          description: Age at maturity
+          example: 16-20 weeks
+        feeding_requirements:
+          type: object
+          properties:
+            type:
+              type: string
+              example: Grains, vegetables, protein
+            frequency:
+              type: string
+              example: 2-3 times daily
+            water:
+              type: string
+              example: Constant fresh water
+        housing_requirements:
+          type: object
+          properties:
+            space:
+              type: string
+              example: 1 sq ft per bird
+            temperature:
+              type: string
+              example: 18-24°C
+            ventilation:
+              type: string
+              example: Good airflow required
+        common_diseases:
+          type: array
+          items:
+            type: string
+          example: ["Newcastle disease", "Fowl pox", "Coccidiosis"]
+        vaccination_schedule:
+          type: array
+          items:
+            type: object
+            properties:
+              age:
+                type: string
+              vaccine:
+                type: string
+          example:
+            - age: 1 day
+              vaccine: Marek's disease
+            - age: 7 days
+              vaccine: Newcastle disease
+        production_info:
+          type: object
+          properties:
+            eggs_per_year:
+              type: string
+              example: 200-300 eggs
+            meat_yield:
+              type: string
+              example: 1.5-2.5 kg
+        economic_value:
+          type: string
+          description: Economic importance
+          example: High - eggs and meat production
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          description: Items per page
+          example: 20
+        total:
+          type: integer
+          description: Total number of items
+          example: 50
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 3
+        hasNext:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        hasPrev:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Error message
+          example: Resource not found
+        code:
+          type: string
+          description: Error code
+          example: NOT_FOUND
+        details:
+          type: object
+          description: Additional error details
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+x-tagGroups:
+  - name: Service
+    tags:
+      - Health
+  - name: Agricultural Data
+    tags:
+      - Crops
+      - Livestock
